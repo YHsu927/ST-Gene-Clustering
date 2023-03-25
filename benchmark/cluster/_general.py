@@ -35,7 +35,7 @@ def generally_cluster_obs(
         cl_data = read_clusters_from_cache(adata, cl_method.__name__, run, k)
         if cl_data is None:
             cl_data = cl_method(adata, img, **kwargs) # cl_method must return AnnData
-            write_clusters_as_cache(cl_data, cl_method.__name__, run)
+            write_clusters_as_cache(cl_data, cl_method.__name__, run, k)
     else:
         raise NotImplementedError(f"`cl_method` should be an valid string or a function, got {type(cl_method)}.")
     return cl_data
