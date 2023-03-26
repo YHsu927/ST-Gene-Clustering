@@ -104,6 +104,10 @@ def Giotto_clustering(adata: ad.AnnData, k: int, random_state: int = 0):
 
 
 def STUtility_clustering(adata: ad.AnnData, k: int, random_state: int = 0):
+    """
+    STUtility use Non-negative Matrix Factorization to gene cluster
+    https://github.com/jbergenstrahle/STUtility/
+    """
     with HiddenPrints():
         anndata2ri.activate()
         importr("STutility")
@@ -138,6 +142,11 @@ def STUtility_clustering(adata: ad.AnnData, k: int, random_state: int = 0):
 
 
 def SPARK_clustering(adata: ad.AnnData, k: int, random_state: int = 0):
+    """
+    SPARK for feature selection and gene cluster by Hierarchical clustering
+    https://github.com/xzhoulab/SPARK
+    https://github.com/xzhoulab/SPARK-Analysis/blob/master/analysis/SPARK/mouse_ob.R
+    """
     with HiddenPrints():
         anndata2ri.activate()
         importr("SPARK")
@@ -150,9 +159,10 @@ def SPARK_clustering(adata: ad.AnnData, k: int, random_state: int = 0):
         LMReg <- function(ct, T) {
         return(lm(ct ~ T)$residuals)
         }
-
+        spark <- sparkx(mtx, info, verbose=F)
         lib_size <- apply(mtx, 2, sum)
         vst_count <- log(mtx+0.01)
+        vst_count <- vst_count[which(spark$res_mtest$adjustedPval < 0.1), ]
         vst_res <- t(apply(vst_count, 1, LMReg, T = log(lib_size)))
 
         hc <- hcluster(vst_res, method = "euc", link = "ward", nbproc = 20,
