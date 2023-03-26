@@ -10,16 +10,16 @@ from loguru import logger
 import pandas as pd
 
 
-def write_clusters_as_cache(cl_data: pd.DataFrame, data_name: str, cl_method: str, run: int):
+def write_clusters_as_cache(cl_data: pd.DataFrame, data_name: str, cl_method: str, run: int, k: int):
     clusters_dir = f"./cache/clustering_result/{data_name}/{cl_method}/"
     if not os.path.exists(clusters_dir):
         os.makedirs(clusters_dir)
-    cl_data.to_csv(os.path.join(clusters_dir, f"{run}.csv"), index=False)
+    cl_data.to_csv(os.path.join(clusters_dir, f"{run}_{k}.csv"), index=False)
     logger.opt(colors=True).info(f"<magenta>{cl_method}</magenta> clustering results have been cached.")
 
 
-def read_clusters_from_cache(data_name: str, cl_method: str, run: int):
-    clusters_dir = f"./cache/clustering_result/{data_name}/{cl_method}/{run}.csv"
+def read_clusters_from_cache(data_name: str, cl_method: str, run: int, k: int):
+    clusters_dir = f"./cache/clustering_result/{data_name}/{cl_method}/{run}_{k}.csv"
     if os.path.exists(clusters_dir):
         logger.opt(colors=True).info(f"Loading cached <magenta>{cl_method}</magenta> clustering results...")
         return pd.read_csv(clusters_dir)
