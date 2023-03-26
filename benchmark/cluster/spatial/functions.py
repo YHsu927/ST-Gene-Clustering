@@ -55,7 +55,7 @@ def Giotto_save_rds(adata: ad.AnnData):
         anndata2ri.activate()
         importr("Giotto")
         globalenv['spe'] = adata
-        r("""{r echo=TRUE, message=FALSE, warning=FALSE}
+        r("""
         gobj <- createGiottoObject(expression = assay(spe, 'X'),
                                    spatial_locs = reducedDim(spe, 'spatial'),
                                    cell_metadata = colData(spe),
@@ -81,7 +81,7 @@ def Giotto_clustering(adata: ad.AnnData, k: int, random_state: int = 0):
         anndata2ri.activate()
         importr("Giotto")
         globalenv['n_cluster'] = k
-        r("""{r echo=TRUE, message=FALSE, warning=FALSE}
+        r("""
         gobj <- readRDS('./cache/temp/giotto_obj.rds')
         gobj <- normalizeGiotto(gobject = gobj, verbose = F)
         gobj <- createSpatialNetwork(gobject = gobj, method = 'kNN', k = 8, name = 'spatial_network')
