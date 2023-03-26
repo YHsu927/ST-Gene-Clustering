@@ -248,5 +248,5 @@ def cofunction(adata,species='mouse',fast=True):
                 except:
                     d[q,0]=np.nan
         q+=1
-    return np.mean(d)    
+    return np.nanmean(d)    
 
