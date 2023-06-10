@@ -61,7 +61,6 @@ def Giotto_save_rds(adata: ad.AnnData):
                                    cell_metadata = colData(spe),
                                    feat_metadata = rowData(spe))
         saveRDS(gobj, './cache/temp/giotto_obj.rds')
-        options(warn=-1)
         """)
         anndata2ri.deactivate()
 
@@ -76,7 +75,6 @@ def Giotto_clustering(adata: ad.AnnData, k: int, random_state: int = 0):
     p = Process(target=Giotto_save_rds, args=(adata,))
     p.start()
     p.join()
-
     with HiddenPrints():
         anndata2ri.activate()
         importr("Giotto")
@@ -85,15 +83,13 @@ def Giotto_clustering(adata: ad.AnnData, k: int, random_state: int = 0):
         gobj <- readRDS('./cache/temp/giotto_obj.rds')
         gobj <- normalizeGiotto(gobject = gobj, verbose = F)
         gobj <- createSpatialNetwork(gobject = gobj, method = 'kNN', k = 8, name = 'spatial_network')
-        ranktest <- binSpect(gobject = gobj, bin_method='rank', do_parallel=TRUE, cores=20,
-                             spatial_network_name = 'spatial_network')
+        ranktest <- binSpect(gobject = gobj, bin_method='rank', cores=10, spatial_network_name = 'spatial_network')
 
         ext_spatial_feats <- ranktest$feats
         spat_cor_netw_DT <- detectSpatialCorFeats(gobj, method = 'network',
                                                   spatial_network_name = 'spatial_network',
                                                   subset_feats = ext_spatial_feats)
         spat_cor_netw_DT <- clusterSpatialCorFeats(spat_cor_netw_DT, name = 'spat_netw_clus', k = n_cluster)
-        options(warn=-1)
         """)
         result = list(r('spat_cor_netw_DT$cor_clusters$spat_netw_clus'))
         names = list(r('names(spat_cor_netw_DT$cor_clusters$spat_netw_clu)'))
@@ -104,10 +100,6 @@ def Giotto_clustering(adata: ad.AnnData, k: int, random_state: int = 0):
 
 
 def STUtility_clustering(adata: ad.AnnData, k: int, random_state: int = 0):
-    """
-    STUtility use Non-negative Matrix Factorization to gene cluster
-    https://github.com/jbergenstrahle/STUtility/
-    """
     with HiddenPrints():
         anndata2ri.activate()
         importr("STutility")
@@ -116,25 +108,30 @@ def STUtility_clustering(adata: ad.AnnData, k: int, random_state: int = 0):
         globalenv['mtx'] = csr_matrix(adata.X.T)
         globalenv['cellinfo'] = adata.obs
         globalenv['gene_name'] = adata.var_names
+        globalenv['seed'] = random_state
         r("""
+        set.seed(seed)
+
         colnames(mtx) <- rownames(cellinfo)
         rownames(mtx) <- gene_name
 
         se <- CreateSeuratObject(mtx, min.cells=5, min.features=5,
         meta.data = cellinfo[,!colnames(cellinfo)%in%c("n_genes","n_counts"),drop=F])
 
-        se <- SCTransform(se, variable.features.n = length(gene_name))
-        se <- RunNMF(se, nfactors=n_cluster, n.cores=20)
+        gene_num <- 5000
+        se <- SCTransform(se, variable.features.n = gene_num)
+        se <- RunNMF(se, nfactors=n_cluster, n.cores=40)
 
         label <- c()
-        for (i in 1:length(gene_name)){
-        t <- which.max(se@reductions$NMF@feature.loadings[gene_name[i], ])
+        sele_name <- rownames(se@reductions$NMF@feature.loadings)
+        for (i in 1:gene_num){
+        t <- which.max(se@reductions$NMF@feature.loadings[sele_name[i], ])
         label <- c(label, t)
         }
         options(warn=-1)
         """)
         result = list(r("label"))
-        names = list(r("gene_name"))
+        names = list(r("sele_name"))
         anndata2ri.deactivate()
 
     data = pd.DataFrame({'gene_id': names, 'cluster_id': result}, columns=['gene_id', 'cluster_id'])
@@ -142,11 +139,6 @@ def STUtility_clustering(adata: ad.AnnData, k: int, random_state: int = 0):
 
 
 def SPARK_clustering(adata: ad.AnnData, k: int, random_state: int = 0):
-    """
-    SPARK for feature selection and gene cluster by Hierarchical clustering
-    https://github.com/xzhoulab/SPARK
-    https://github.com/xzhoulab/SPARK-Analysis/blob/master/analysis/SPARK/mouse_ob.R
-    """
     with HiddenPrints():
         anndata2ri.activate()
         importr("SPARK")
@@ -155,14 +147,19 @@ def SPARK_clustering(adata: ad.AnnData, k: int, random_state: int = 0):
         globalenv['mtx'] = adata.X.T
         globalenv['info'] = adata.obsm['spatial']
         globalenv['gene_name'] = adata.var_names
+        globalenv['seed'] = random_state
         r("""
         LMReg <- function(ct, T) {
         return(lm(ct ~ T)$residuals)
         }
+
+        set.seed(seed)
         spark <- sparkx(mtx, info, verbose=F)
+        idx <- which(spark$res_mtest$combinedPval < 0.1)
         lib_size <- apply(mtx, 2, sum)
         vst_count <- log(mtx+0.01)
-        vst_count <- vst_count[which(spark$res_mtest$adjustedPval < 0.1), ]
+        vst_count <- vst_count[idx, ]
+        sele_name <- gene_name[idx]
         vst_res <- t(apply(vst_count, 1, LMReg, T = log(lib_size)))
 
         hc <- hcluster(vst_res, method = "euc", link = "ward", nbproc = 20,
@@ -171,7 +168,7 @@ def SPARK_clustering(adata: ad.AnnData, k: int, random_state: int = 0):
         options(warn=-1)
         """)
         result = list(r("memb"))
-        names = list(r("gene_name"))
+        names = list(r("sele_name"))
         anndata2ri.deactivate()
 
     data = pd.DataFrame({'gene_id': names, 'cluster_id': result}, columns=['gene_id', 'cluster_id'])
